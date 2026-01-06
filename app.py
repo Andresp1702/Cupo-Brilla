@@ -14,7 +14,7 @@ st.markdown("Ingrese el número de cédula para consultar el detalle de contrato
 def cargar_datos():
     # CAMBIA 'tu_archivo.xlsx' por el nombre real de tu archivo
     # Asegúrate de usar la hoja donde está el detalle (fila por contrato), NO el resumen
-    df = pd.read_excel("base_datos_clientes.xlsx") 
+    df = pd.read_excel("base.xlsx") 
     
     # Aseguramos que la cédula sea texto para evitar problemas de búsqueda
     df['Identificacion'] = df['Identificacion'].astype(str)
@@ -74,4 +74,5 @@ if cedula_input:
         st.dataframe(datos_visualizar[columnas_a_mostrar], use_container_width=True)
 
     else:
+
         st.warning("⚠️ No se encontró ninguna información para la cédula ingresada.")
