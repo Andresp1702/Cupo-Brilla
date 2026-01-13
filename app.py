@@ -63,7 +63,7 @@ if cedula_input:
 
         segmento_str = str(segmento) if pd.notna(segmento) else "Sin segmento"
 
-        st.success(f"✅ Cliente: **{nombre}**")
+        st.success(f"✅ Cliente: {nombre}")
         
         # Información extra
         info_col1, info_col2 = st.columns(2)
@@ -153,3 +153,4 @@ if cedula_input:
 
     else:
         st.warning(f"⚠️ La cédula {cedula_limpia} no se encuentra en la base de datos.")
+
