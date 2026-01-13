@@ -20,7 +20,7 @@ st.markdown("Ingrese el número de cédula para consultar el perfil, contratos y
 def cargar_datos():
     # CAMBIA 'base.xlsx' por el nombre real de tu archivo
     # Asegúrate de que las columnas existan tal cual en el Excel
-    df = pd.read_excel("base.xlsx", dtype={'Identificacion': str})
+    df = pd.read_excel("base_2.xlsx", dtype={'Identificacion': str})
     return df
 
 try:
@@ -133,3 +133,4 @@ if cedula_input:
 
     else:
         st.warning(f"⚠️ La cédula {cedula_limpia} no se encuentra en la base de datos.")
+
