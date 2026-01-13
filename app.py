@@ -4,7 +4,7 @@ import pandas as pd
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Consulta de Cupos", layout="centered", page_icon="🔍")
 
-# --- ESTILOS CSS (Opcional: Para mejorar la visualización de métricas) ---
+# --- ESTILOS CSS ---
 st.markdown("""
 <style>
     div[data-testid="stMetricValue"] { font-size: 24px; }
@@ -18,15 +18,15 @@ st.markdown("Ingrese el número de cédula para consultar el perfil, contratos y
 # --- CARGAR DATOS ---
 @st.cache_data
 def cargar_datos():
-    # CAMBIA 'base.xlsx' por el nombre real de tu archivo
-    # Asegúrate de que las columnas existan tal cual en el Excel
-    df = pd.read_excel("base_2.xlsx", dtype={'Identificacion': str})
+    # Usamos base_2.xlsx como en tu código. 
+    # Asegúrate que el archivo esté en la carpeta del repositorio.
+    df = pd.read_excel("base_2.xlsx", dtype={'Identificacion': str, 'Contrato': str})
     return df
 
 try:
     df = cargar_datos()
 except FileNotFoundError:
-    st.error("⚠️ No se encontró el archivo 'base.xlsx'. Asegúrate de subirlo al repositorio.")
+    st.error("⚠️ No se encontró el archivo 'base_2.xlsx'. Asegúrate de subirlo al repositorio.")
     st.stop()
 except Exception as e:
     st.error(f"⚠️ Error al leer el archivo: {e}")
@@ -45,18 +45,27 @@ if cedula_input:
     datos_cliente = df[df['Identificacion'] == cedula_limpia]
 
     if not datos_cliente.empty:
-        # --- DATOS GENERALES DEL CLIENTE (Tomamos el primero encontrado) ---
+        # --- DATOS GENERALES DEL CLIENTE ---
         nombre = datos_cliente['NombreSuscriptor'].iloc[0]
-        telefono = datos_cliente['UltimoTelefono'].iloc[0]
+        telefono_raw = datos_cliente['UltimoTelefono'].iloc[0]
         segmento = datos_cliente['SegmentoClienteRFM'].iloc[0]
 
-        # Manejo de valores nulos para mostrar texto limpio
-        telefono_str = str(telefono) if pd.notna(telefono) else "No registrado"
+        # --- CORRECCIÓN: LIMPIEZA DE TELÉFONO ---
+        if pd.notna(telefono_raw):
+            t_str = str(telefono_raw)
+            # Si Excel trajo decimales (ej: 310555.0), los quitamos
+            if t_str.endswith('.0'):
+                t_str = t_str[:-2]
+            # Dejamos SOLO dígitos (elimina comas, espacios, puntos)
+            telefono_str = ''.join(filter(str.isdigit, t_str))
+        else:
+            telefono_str = "No registrado"
+
         segmento_str = str(segmento) if pd.notna(segmento) else "Sin segmento"
 
         st.success(f"✅ Cliente: **{nombre}**")
         
-        # Mostramos información extra en columnas pequeñas arriba
+        # Información extra
         info_col1, info_col2 = st.columns(2)
         with info_col1:
             st.info(f"📞 **Teléfono:** {telefono_str}")
@@ -84,43 +93,54 @@ if cedula_input:
             total_disponible = datos_visualizar['CupoDisponible'].sum()
             cantidad_predios = len(datos_visualizar)
 
-            # --- VISUALIZACIÓN DE MÉTRICAS (Lógica condicional) ---
-            # Creamos 4 columnas potenciales
+            # --- VISUALIZACIÓN DE MÉTRICAS ---
             m_col1, m_col2, m_col3, m_col4 = st.columns(4)
 
-            # Siempre mostramos la cantidad de predios
             m_col1.metric("🏠 Predios", f"{cantidad_predios}")
 
-            # Solo mostramos Asignado si es mayor a 0
             if total_asignado > 0:
                 m_col2.metric("💰 Asignado", f"${total_asignado:,.0f}")
             else:
-                m_col2.empty() # Deja el espacio vacío o invisible
+                m_col2.empty()
 
-            # Solo mostramos Usado si es mayor a 0
             if total_usado > 0:
                 m_col3.metric("📉 Usado", f"${total_usado:,.0f}")
             else:
                 m_col3.empty()
 
-            # Cupo Disponible (El más importante)
             m_col4.metric("✅ Disponible", f"${total_disponible:,.0f}")
 
-            # --- TABLA DETALLADA ---
-            st.subheader("📋 Detalle de Contratos y Compras")
+            # --- LÓGICA LINEA ÚLTIMA COMPRA ---
+            # Verificamos cuántas líneas de compra diferentes hay en la selección
+            lineas_unicas = datos_visualizar['LineaUltimaCompra'].astype(str).unique()
             
-            # Definimos las columnas que queremos ver en la tabla
+            mostrar_linea_en_tabla = True # Por defecto la mostramos
+            
+            # Si solo hay UNA línea única (y no es 'nan'), la mostramos afuera
+            if len(lineas_unicas) == 1 and lineas_unicas[0].lower() != 'nan':
+                st.info(f"🛒 **Última Línea de Compra (General):** {lineas_unicas[0]}")
+                mostrar_linea_en_tabla = False # La quitamos de la tabla para no repetir
+
+            # --- TABLA DETALLADA ---
+            st.subheader("📋 Detalle de Contratos")
+            
+            # Definimos las columnas base
             columnas_a_mostrar = [
+                'Contrato',  # <--- Agregado Contrato
                 'Localidad', 
                 'Subcategoria', 
                 'Ubicacion', 
-                'LineaUltimaCompra', 
                 'CupoAsignado', 
                 'CupoUsado',
                 'CupoDisponible'
             ]
             
-            # Verificamos que las columnas existan antes de mostrarlas para evitar errores
+            # Si las líneas son diferentes, agregamos la columna a la tabla
+            if mostrar_linea_en_tabla:
+                # La insertamos en una posición específica (ej: después de Ubicacion)
+                columnas_a_mostrar.insert(4, 'LineaUltimaCompra')
+
+            # Verificamos que las columnas existan
             cols_existentes = [c for c in columnas_a_mostrar if c in datos_visualizar.columns]
 
             st.dataframe(
@@ -133,4 +153,3 @@ if cedula_input:
 
     else:
         st.warning(f"⚠️ La cédula {cedula_limpia} no se encuentra en la base de datos.")
-
