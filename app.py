@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt  # <--- IMPORTANTE: Necesario para el gráfico
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Consulta de Cupos", layout="centered", page_icon="🔍")
@@ -18,8 +19,7 @@ st.markdown("Ingrese el número de cédula para consultar el perfil, contratos y
 # --- CARGAR DATOS ---
 @st.cache_data
 def cargar_datos():
-    # Usamos base_2.xlsx como en tu código. 
-    # Asegúrate que el archivo esté en la carpeta del repositorio.
+    # Usamos base_2.xlsx
     df = pd.read_excel("base_2.xlsx", dtype={'Identificacion': str, 'Contrato': str})
     return df
 
@@ -50,13 +50,11 @@ if cedula_input:
         telefono_raw = datos_cliente['UltimoTelefono'].iloc[0]
         segmento = datos_cliente['SegmentoClienteRFM'].iloc[0]
 
-        # --- CORRECCIÓN: LIMPIEZA DE TELÉFONO ---
+        # --- LIMPIEZA DE TELÉFONO ---
         if pd.notna(telefono_raw):
             t_str = str(telefono_raw)
-            # Si Excel trajo decimales (ej: 310555.0), los quitamos
             if t_str.endswith('.0'):
                 t_str = t_str[:-2]
-            # Dejamos SOLO dígitos (elimina comas, espacios, puntos)
             telefono_str = ''.join(filter(str.isdigit, t_str))
         else:
             telefono_str = "No registrado"
@@ -74,7 +72,7 @@ if cedula_input:
 
         st.divider()
 
-        # --- FILTRO POR CIUDAD ---
+        # --- FILTRO POR CIUDAD (Multiselect) ---
         ciudades_disponibles = datos_cliente['Localidad'].unique()
         
         ciudades_seleccionadas = st.multiselect(
@@ -109,25 +107,63 @@ if cedula_input:
                 m_col3.empty()
 
             m_col4.metric("✅ Disponible", f"${total_disponible:,.0f}")
+            
+            st.divider()
 
-            # --- LÓGICA LINEA ÚLTIMA COMPRA ---
-            # Verificamos cuántas líneas de compra diferentes hay en la selección
+            # =========================================================
+            # LÓGICA ESPECIAL: LOCALIDAD Y LÍNEA DE COMPRA
+            # =========================================================
+
+            # 1. Análisis de LOCALIDAD
+            localidades_unicas = datos_visualizar['Localidad'].unique()
+            mostrar_localidad_tabla = True # Por defecto sí
+
+            if len(localidades_unicas) == 1:
+                # CASO A: Misma Localidad -> Se muestra afuera y se quita de la tabla
+                st.info(f"📍 **Localidad (General):** {localidades_unicas[0]}")
+                mostrar_localidad_tabla = False
+            else:
+                # CASO B: Diferentes Localidades -> Se queda en tabla y GENERAMOS GRÁFICO
+                st.subheader("📊 Distribución por Localidad")
+                
+                # Preparamos datos para el gráfico
+                conteo_localidad = datos_visualizar['Localidad'].value_counts()
+                total_loc = conteo_localidad.sum()
+                
+                # Creamos etiquetas personalizadas (Nombre: Cantidad (XX%))
+                labels_loc = [
+                    f'{l}: {v} ({(v/total_loc*100):.1f}%)' 
+                    for l, v in zip(conteo_localidad.index, conteo_localidad)
+                ]
+
+                # Generamos figura
+                fig, ax = plt.subplots(figsize=(6, 3))
+                wedges, texts = ax.pie(
+                    conteo_localidad, 
+                    startangle=90,
+                    colors=plt.cm.Pastel1.colors,
+                    wedgeprops={'edgecolor': 'white'}
+                )
+                
+                # Leyenda al lado
+                ax.legend(wedges, labels_loc, title="Localidades", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
+                ax.axis('equal') 
+                st.pyplot(fig, use_container_width=False) # Mostramos el gráfico
+
+            # 2. Análisis de LÍNEA DE COMPRA
             lineas_unicas = datos_visualizar['LineaUltimaCompra'].astype(str).unique()
+            mostrar_linea_en_tabla = True 
             
-            mostrar_linea_en_tabla = True # Por defecto la mostramos
-            
-            # Si solo hay UNA línea única (y no es 'nan'), la mostramos afuera
             if len(lineas_unicas) == 1 and lineas_unicas[0].lower() != 'nan':
                 st.info(f"🛒 **Última Línea de Compra (General):** {lineas_unicas[0]}")
-                mostrar_linea_en_tabla = False # La quitamos de la tabla para no repetir
+                mostrar_linea_en_tabla = False 
 
             # --- TABLA DETALLADA ---
             st.subheader("📋 Detalle de Contratos")
             
-            # Definimos las columnas base
+            # Definimos las columnas base (SIN Localidad ni LineaUltimaCompra inicialmente)
             columnas_a_mostrar = [
-                'Contrato',  # <--- Agregado Contrato
-                'Localidad', 
+                'Contrato',  
                 'Subcategoria', 
                 'Ubicacion', 
                 'CupoAsignado', 
@@ -135,12 +171,19 @@ if cedula_input:
                 'CupoDisponible'
             ]
             
-            # Si las líneas son diferentes, agregamos la columna a la tabla
-            if mostrar_linea_en_tabla:
-                # La insertamos en una posición específica (ej: después de Ubicacion)
-                columnas_a_mostrar.insert(4, 'LineaUltimaCompra')
+            # Inserción dinámica de columnas según la lógica de arriba
+            
+            # A) Si hay multiples localidades, agregamos la columna 'Localidad'
+            if mostrar_localidad_tabla:
+                columnas_a_mostrar.insert(1, 'Localidad')
 
-            # Verificamos que las columnas existan
+            # B) Si hay multiples líneas, agregamos la columna 'LineaUltimaCompra'
+            if mostrar_linea_en_tabla:
+                # Buscamos dónde insertar (después de Localidad si existe, o al principio)
+                posicion = 2 if mostrar_localidad_tabla else 1
+                columnas_a_mostrar.insert(posicion, 'LineaUltimaCompra')
+
+            # Verificamos que las columnas existan en el DF para evitar errores
             cols_existentes = [c for c in columnas_a_mostrar if c in datos_visualizar.columns]
 
             st.dataframe(
@@ -153,4 +196,3 @@ if cedula_input:
 
     else:
         st.warning(f"⚠️ La cédula {cedula_limpia} no se encuentra en la base de datos.")
-
