@@ -19,8 +19,9 @@ st.markdown("Ingrese el número de cédula para consultar el perfil, contratos y
 # --- CARGAR DATOS ---
 @st.cache_data
 def cargar_datos():
-    # Leemos el parquet
-    df = pd.read_parquet("base_2.parquet")
+    # Leemos el archivo pickle comprimido
+    # Pandas detecta la compresión gzip automáticamente por la extensión
+    df = pd.read_pickle("base_2.pkl.gz")
     return df
 
 try:
@@ -194,5 +195,6 @@ if cedula_input:
 
     else:
         st.warning(f"⚠️ La cédula {cedula_limpia} no se encuentra en la base de datos.")
+
 
 
