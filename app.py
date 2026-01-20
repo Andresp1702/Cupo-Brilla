@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt  # <--- IMPORTANTE: Necesario para el gráfico
+import matplotlib.pyplot as plt
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Consulta de Cupos", layout="centered", page_icon="🔍")
@@ -85,14 +85,22 @@ if cedula_input:
         datos_visualizar = datos_cliente[datos_cliente['Localidad'].isin(ciudades_seleccionadas)]
 
         if not datos_visualizar.empty:
-            # --- CÁLCULOS ---
+            # --- CÁLCULOS ESTÁNDAR ---
             total_asignado = datos_visualizar['CupoAsignado'].sum()
             total_usado = datos_visualizar['CupoUsado'].sum()
             total_disponible = datos_visualizar['CupoDisponible'].sum()
             cantidad_predios = len(datos_visualizar)
 
-            # --- VISUALIZACIÓN DE MÉTRICAS ---
-            m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+            # --- CÁLCULO CUPO DISPONIBLE REAL (Top 2 Contratos) ---
+            # 1. Ordenamos por Cupo Disponible de mayor a menor
+            # 2. Tomamos los primeros 2 registros (.head(2))
+            # 3. Sumamos
+            cupo_real_top2 = datos_visualizar.sort_values(
+                by='CupoDisponible', ascending=False
+            ).head(2)['CupoDisponible'].sum()
+
+            # --- VISUALIZACIÓN DE MÉTRICAS (5 Columnas ahora) ---
+            m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
 
             m_col1.metric("🏠 Predios", f"{cantidad_predios}")
 
@@ -106,7 +114,12 @@ if cedula_input:
             else:
                 m_col3.empty()
 
+            # Cupo Total (Suma de todo)
             m_col4.metric("✅ Disponible", f"${total_disponible:,.0f}")
+            
+            # NUEVA METRICA: Cupo Real (Suma Top 2)
+            # Usamos un ícono diferente para resaltar (⭐)
+            m_col5.metric("⭐ Cupo Real (Max 2)", f"${cupo_real_top2:,.0f}")
             
             st.divider()
 
@@ -116,27 +129,21 @@ if cedula_input:
 
             # 1. Análisis de LOCALIDAD
             localidades_unicas = datos_visualizar['Localidad'].unique()
-            mostrar_localidad_tabla = True # Por defecto sí
+            mostrar_localidad_tabla = True 
 
             if len(localidades_unicas) == 1:
-                # CASO A: Misma Localidad -> Se muestra afuera y se quita de la tabla
                 st.info(f"📍 **Localidad (General):** {localidades_unicas[0]}")
                 mostrar_localidad_tabla = False
             else:
-                # CASO B: Diferentes Localidades -> Se queda en tabla y GENERAMOS GRÁFICO
                 st.subheader("📊 Distribución por Localidad")
-                
-                # Preparamos datos para el gráfico
                 conteo_localidad = datos_visualizar['Localidad'].value_counts()
                 total_loc = conteo_localidad.sum()
                 
-                # Creamos etiquetas personalizadas (Nombre: Cantidad (XX%))
                 labels_loc = [
                     f'{l}: {v} ({(v/total_loc*100):.1f}%)' 
                     for l, v in zip(conteo_localidad.index, conteo_localidad)
                 ]
 
-                # Generamos figura
                 fig, ax = plt.subplots(figsize=(6, 3))
                 wedges, texts = ax.pie(
                     conteo_localidad, 
@@ -144,11 +151,9 @@ if cedula_input:
                     colors=plt.cm.Pastel1.colors,
                     wedgeprops={'edgecolor': 'white'}
                 )
-                
-                # Leyenda al lado
                 ax.legend(wedges, labels_loc, title="Localidades", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
                 ax.axis('equal') 
-                st.pyplot(fig, use_container_width=False) # Mostramos el gráfico
+                st.pyplot(fig, use_container_width=False)
 
             # 2. Análisis de LÍNEA DE COMPRA
             lineas_unicas = datos_visualizar['LineaUltimaCompra'].astype(str).unique()
@@ -161,7 +166,6 @@ if cedula_input:
             # --- TABLA DETALLADA ---
             st.subheader("📋 Detalle de Contratos")
             
-            # Definimos las columnas base (SIN Localidad ni LineaUltimaCompra inicialmente)
             columnas_a_mostrar = [
                 'Contrato',  
                 'Subcategoria', 
@@ -171,19 +175,13 @@ if cedula_input:
                 'CupoDisponible'
             ]
             
-            # Inserción dinámica de columnas según la lógica de arriba
-            
-            # A) Si hay multiples localidades, agregamos la columna 'Localidad'
             if mostrar_localidad_tabla:
                 columnas_a_mostrar.insert(1, 'Localidad')
 
-            # B) Si hay multiples líneas, agregamos la columna 'LineaUltimaCompra'
             if mostrar_linea_en_tabla:
-                # Buscamos dónde insertar (después de Localidad si existe, o al principio)
                 posicion = 2 if mostrar_localidad_tabla else 1
                 columnas_a_mostrar.insert(posicion, 'LineaUltimaCompra')
 
-            # Verificamos que las columnas existan en el DF para evitar errores
             cols_existentes = [c for c in columnas_a_mostrar if c in datos_visualizar.columns]
 
             st.dataframe(
