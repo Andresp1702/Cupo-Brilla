@@ -194,3 +194,4 @@ if cedula_input:
 
     else:
         st.warning(f"⚠️ La cédula {cedula_limpia} no se encuentra en la base de datos.")
+
