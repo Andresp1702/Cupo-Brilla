@@ -19,8 +19,8 @@ st.markdown("Ingrese el número de cédula para consultar el perfil, contratos y
 # --- CARGAR DATOS ---
 @st.cache_data
 def cargar_datos():
-    # Usamos base_2.xlsx
-    df = pd.read_excel("base_2.xlsx", dtype={'Identificacion': str, 'Contrato': str})
+    # Leemos el parquet
+    df = pd.read_parquet("base_2.parquet")
     return df
 
 try:
@@ -194,4 +194,5 @@ if cedula_input:
 
     else:
         st.warning(f"⚠️ La cédula {cedula_limpia} no se encuentra en la base de datos.")
+
 
